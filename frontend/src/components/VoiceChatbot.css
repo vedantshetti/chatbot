@@ -1,0 +1,37 @@
+body {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh; /* Full viewport height */
+  background-color: #f0f0f0; /* Optional: background color */
+}
+
+.sound-wave {
+  margin: 20px 0; /* Optional: spacing for the recording visual */
+}
+
+h1 {
+  text-align: center; /* Center the heading */
+}
+
+button {
+  margin: 5px; /* Space between buttons */
+  padding: 10px 15px; /* Button padding */
+  font-size: 16px; /* Button font size */
+  cursor: pointer; /* Pointer cursor on hover */
+}
+.transcript-area {
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #f9f9f9; /* Light background color for contrast */
+}
+
+.transcript-area p {
+  margin: 0;
+  font-size: 1.2em; /* Adjust font size as needed */
+  color: #333; /* Darker text color for readability */
+}
