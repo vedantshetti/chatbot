@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { ReactMic } from 'react-mic';
+import './VoiceChatbot.css';
 
 const VoiceChatbot = () => {
   const [recording, setRecording] = useState(false);
   const [blobURL, setBlobURL] = useState(null);
+  const [transcript, setTranscript] = useState(''); // State for the transcribed text
 
   const startRecording = () => {
     setRecording(true);
   };
 
-  const stopRecording = async () => {
+  const stopRecording = () => {
     setRecording(false);
   };
 
@@ -19,11 +21,18 @@ const VoiceChatbot = () => {
 
   const onStop = async (recordedBlob) => {
     console.log('recordedBlob is: ', recordedBlob);
-    setBlobURL(URL.createObjectURL(recordedBlob.blob));
-
+      
+    // Create a URL for the recorded audio blob
+    const audioBlob = new Blob([recordedBlob.blob], { type: 'audio/webm' }); // Change to 'audio/webm'
+    const audioUrl = URL.createObjectURL(audioBlob);
+    setBlobURL(audioUrl);
+  
     const formData = new FormData();
-    formData.append('audio', recordedBlob.blob);
-
+    formData.append('audio', audioBlob); // Change to 'audioBlob'
+  
+    // Remaining code...
+  
+  
     try {
       const response = await fetch('http://localhost:5000/speech-to-text', {
         method: 'POST',
@@ -34,11 +43,18 @@ const VoiceChatbot = () => {
         throw new Error('Network response was not ok');
       }
 
-      const audioData = await response.blob();
-      const audioUrl = URL.createObjectURL(audioData);
+      const data = await response.json(); // Expecting JSON response
+      console.log('Transcribed text:', data.text); // Log the transcribed text
+      setTranscript(data.text); // Set the transcript state
 
-      const audio = new Audio(audioUrl);
-      audio.play();
+      // Play audio directly after creating the object URL
+      const audioData = await response.blob(); // Assuming you want to handle audio as well
+      const responseAudioUrl = URL.createObjectURL(audioData);
+      const audio = new Audio(responseAudioUrl);
+      audio.play().catch((error) => {
+        console.error('Error playing audio:', error);
+      });
+
     } catch (error) {
       console.error('Error:', error);
     }
@@ -63,7 +79,16 @@ const VoiceChatbot = () => {
           Stop Recording
         </button>
       </div>
-      {blobURL && <audio src={blobURL} controls="controls" />}
+      {blobURL && <audio src={blobURL} controls="controls" autoPlay />}
+      
+      {/* New area for displaying transcribed text */}
+      <div className="transcript-area">
+        {transcript ? (
+          <p>Transcribed Text: {transcript}</p>
+        ) : (
+          <p>No transcription available.</p>
+        )}
+      </div>
     </div>
   );
 };
