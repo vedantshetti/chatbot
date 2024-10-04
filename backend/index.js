@@ -1,19 +1,25 @@
 const express = require('express');
 const multer = require('multer');
 const axios = require('axios');
-const textToSpeech = require('@google-cloud/text-to-speech');
+const AWS = require('aws-sdk'); // Add the AWS SDK
 const fs = require('fs');
-const util = require('util');
-const path = require('path');
+
+const cors = require('cors'); // Import cors
 
 const app = express();
 const port = 5000;
+app.use(cors());
 
-// Replace with your AssemblyAI API key
-const assemblyAIKey = 'f077e8b6be294893bb9426c2dbc6b896';
 
-// Create a client for the Text-to-Speech API
-const client = new textToSpeech.TextToSpeechClient();
+// Configure AWS SDK with your access keys from environment variables
+AWS.config.update({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION,
+});
+
+// Create a client for Polly
+const polly = new AWS.Polly();
 
 // Multer setup for handling file uploads
 const storage = multer.memoryStorage();
@@ -23,18 +29,23 @@ app.use(express.json());
 
 // Endpoint to handle the speech-to-text process
 app.post('/speech-to-text', upload.single('audio'), async (req, res) => {
+  console.log(req.file); // Log the uploaded file for debugging
   if (!req.file) {
     return res.status(400).send('No file uploaded.');
-  }
+  } 
 
   try {
+    // Log the file to see if it's coming through
+    console.log('Uploaded file:', req.file);
+
     // Upload the audio file to AssemblyAI
     const uploadResponse = await axios.post('https://api.assemblyai.com/v2/upload', req.file.buffer, {
       headers: {
-        'Authorization': assemblyAIKey,
+        'Authorization': process.env.ASSEMBLYAI_KEY, // Ensure this is correctly set
         'Content-Type': 'application/json',
       },
     });
+    
 
     const audioUrl = uploadResponse.data.upload_url;
 
@@ -43,7 +54,7 @@ app.post('/speech-to-text', upload.single('audio'), async (req, res) => {
       audio_url: audioUrl,
     }, {
       headers: {
-        'Authorization': assemblyAIKey,
+        'Authorization': process.env.ASSEMBLYAI_KEY, // Use environment variable
       },
     });
 
@@ -56,7 +67,7 @@ app.post('/speech-to-text', upload.single('audio'), async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for 3 seconds
       const transcriptResult = await axios.get(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
         headers: {
-          'Authorization': assemblyAIKey,
+          'Authorization': process.env.ASSEMBLYAI_KEY, // Use environment variable
         },
       });
       transcript = transcriptResult.data;
@@ -64,25 +75,29 @@ app.post('/speech-to-text', upload.single('audio'), async (req, res) => {
 
     console.log('Transcription:', transcript.text);
 
-    // Call Text-to-Speech API
-    const ttsRequest = {
-      input: { text: transcript.text },
-      voice: { languageCode: 'en-US', ssmlGender: 'NEUTRAL' },
-      audioConfig: { audioEncoding: 'MP3' },
+    // Call AWS Polly for Text-to-Speech
+    const ttsParams = {
+      Text: transcript.text,
+      OutputFormat: 'mp3',
+      VoiceId: 'Joanna', // Choose a voice
     };
 
-    // Perform the Text-to-Speech request
-    const [response] = await client.synthesizeSpeech(ttsRequest);
-    
-    // Send the audio back to the frontend
-    res.set('Content-Type', 'audio/mpeg');
-    res.send(response.audioContent);
-
+    polly.synthesizeSpeech(ttsParams, (err, data) => {
+      if (err) {
+        console.error('Error:', err);
+        return res.status(500).send('Error processing the audio.');
+      } else if (data.AudioStream instanceof Buffer) {
+        // Send the audio back to the frontend
+        res.set('Content-Type', 'audio/mpeg');
+        res.send(data.AudioStream);
+      }
+    });
   } catch (error) {
-    console.error('Error processing the audio:', error);
+    console.error('Error processing the audio:', error.message || error);
     res.status(500).send('Error processing the audio.');
   }
 });
+
 
 // Start the server
 app.listen(port, () => {
